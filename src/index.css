@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Override colors to use hex to avoid html2canvas oklch errors */
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+
+  --color-orange-50: #fff7ed;
+  --color-orange-100: #ffedd5;
+  --color-orange-200: #fed7aa;
+  --color-orange-300: #fdba74;
+  --color-orange-400: #fb923c;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-700: #c2410c;
+  --color-orange-800: #9a3412;
+  --color-orange-900: #7c2d12;
+
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+}
+
+@layer utilities {
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    body {
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+
+    /* Fix for h-screen/overflow-hidden app shell layouts */
+    html, body, #root, [class*="h-screen"], [class*="overflow-hidden"], [class*="overflow-y-auto"] {
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      position: static !important;
+      display: block !important;
+    }
+
+    main {
+      overflow: visible !important;
+      height: auto !important;
+      display: block !important;
+      padding: 0 !important;
+    }
+
+    #printable-area {
+      position: relative !important;
+      left: 0;
+      top: 0;
+      width: 100%;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: block !important;
+    }
+
+    /* Ensure colors print and layout is stable */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      transform: none !important;
+      transition: none !important;
+      animation: none !important;
+    }
+
+    /* Target the container of each day in the production sheet */
+    .space-y-10 > div {
+      break-inside: avoid;
+    }
+
+    /* Force a page break before each EEEE day header if they are too long */
+    h2 + div, .border-b-8 + div {
+      break-inside: auto;
+    }
+
+    /* Specifically hide the sidebar and navigation absolutely */
+    nav, aside, header, .no-print, [role="navigation"], button {
+      display: none !important;
+    }
+  }
+}
+
+.large-font {
+  font-size: 115%;
+}
+
+.large-font .text-\[10px\] {
+  font-size: 0.75rem; /* ~12px instead of 10px */
+}
+
+.large-font .text-xs {
+  font-size: 0.875rem; /* ~14px instead of 12px */
+}
+
+.large-font .text-sm {
+  font-size: 1rem; /* ~16px instead of 14px */
+}
+
+.large-font h1, .large-font h2, .large-font h3 {
+  letter-spacing: -0.01em;
+}

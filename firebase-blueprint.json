@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique Firebase Auth ID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "role": { "type": "string", "enum": ["admin", "kitchen", "venue"], "description": "The user's role in the system." },
+        "venueId": { "type": "string", "description": "The ID of the venue associated with this user (if role is 'venue')." },
+        "displayName": { "type": "string", "description": "The user's display name." }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Venue": {
+      "title": "Venue",
+      "description": "A retail location or the central kitchen.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "type": { "type": "string", "enum": ["kitchen", "retail"] }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A dessert or item produced by the kitchen.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "price": { "type": "number" },
+        "parStock": { "type": "number", "description": "The target stock level for the kitchen." },
+        "active": { "type": "boolean", "description": "Whether the product is currently active in the catalog." }
+      },
+      "required": ["id", "name", "price"]
+    },
+    "Inventory": {
+      "title": "Inventory",
+      "description": "Current stock levels for a specific product at a specific venue.",
+      "type": "object",
+      "properties": {
+        "venueId": { "type": "string" },
+        "productId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["venueId", "productId", "quantity"]
+    },
+    "DistributionOrder": {
+      "title": "Distribution Order",
+      "description": "An order for items to be sent from the kitchen to a venue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "venueId": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantity": { "type": "number" }
+            }
+          }
+        },
+        "status": { "type": "string", "enum": ["pending", "shipped", "received", "cancelled"] },
+        "statusHistory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" },
+              "updatedBy": { "type": "string" }
+            }
+          }
+        },
+        "orderedBy": { "type": "string", "description": "The name of the person who placed the order." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "venueId", "items", "status", "orderedBy", "createdAt"]
+    },
+    "VenueMessage": {
+      "title": "Venue Message",
+      "description": "A message to be displayed to venues upon login.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["global", "individual"] },
+        "persistence": { "type": "string", "enum": ["one-time", "persistent"], "description": "Whether the message stays active or deactivates after being read." },
+        "targetVenueId": { "type": "string", "description": "The ID of the venue if type is 'individual'." },
+        "active": { "type": "boolean" },
+        "readBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of venue IDs that have read/dismissed this message."
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "content", "type", "persistence", "active", "createdAt"]
+    },
+    "GlobalSettings": {
+      "title": "Global Settings",
+      "description": "System-wide settings and feature toggles.",
+      "type": "object",
+      "properties": {
+        "whatsappEnabled": { "type": "boolean", "description": "Whether the WhatsApp messaging feature is enabled for venues." },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["whatsappEnabled"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles." },
+    "/venues/{venueId}": { "schema": "Venue", "description": "Venue information." },
+    "/products/{productId}": { "schema": "Product", "description": "Product catalog." },
+    "/inventory/{inventoryId}": { "schema": "Inventory", "description": "Stock levels (ID is venueId_productId)." },
+    "/orders/{orderId}": { "schema": "DistributionOrder", "description": "Distribution orders." },
+    "/venueMessages/{messageId}": { "schema": "VenueMessage", "description": "Messages for venues." },
+    "/settings/{settingId}": { "schema": "GlobalSettings", "description": "Global system settings." }
+  }
+}

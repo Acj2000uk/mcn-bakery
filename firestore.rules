@@ -1,0 +1,322 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required, email) - User's email
+    //   - role: string (required, ['admin', 'kitchen', 'venue']) - User role
+    //   - venueId: string (optional) - Associated venue for venue users
+    //   - displayName: string (optional) - User's name
+    //
+    // Collection: venues
+    // Document ID: {venueId}
+    // Fields:
+    //   - id: string (required) - Venue ID
+    //   - name: string (required) - Venue name
+    //   - type: string (required, ['kitchen', 'retail']) - Venue type
+    //   - location: string (optional) - Physical location
+    //
+    // Collection: products
+    // Document ID: {productId}
+    // Fields:
+    //   - id: string (required) - Product ID
+    //   - name: string (required) - Product name
+    //   - price: number (required, >0) - Unit price
+    //   - category: string (optional) - Product category
+    //   - description: string (optional) - Product description
+    //   - imageUrl: string (optional, url) - Product image
+    //   - parStock: number (optional, >=0) - Target stock level
+    //   - active: boolean (optional) - Whether product is active
+    //
+    // Collection: inventory
+    // Document ID: {venueId}_{productId}
+    // Fields:
+    //   - venueId: string (required) - Venue ID
+    //   - productId: string (required) - Product ID
+    //   - quantity: number (required, >=0) - Current stock
+    //   - lastUpdated: timestamp (required) - Last update time
+    //
+    // Collection: orders
+    // Document ID: {orderId}
+    // Fields:
+    //   - venueId: string (required) - Ordering venue ID
+    //   - items: list (required) - List of {productId, quantity}
+    //   - status: string (required, ['pending', 'shipped', 'received', 'cancelled'])
+    //   - orderedBy: string (required) - Name of person ordering
+    //   - deliveryDate: string (optional) - Requested delivery date
+    //   - notes: string (optional) - Special requests
+    //   - createdAt: timestamp (required) - Creation time
+    //   - updatedAt: timestamp (required) - Last update time
+    //   - statusHistory: list (optional) - History of status changes
+    //
+    // Collection: venueMessages
+    // Document ID: {messageId}
+    // Fields:
+    //   - content: string (required) - Message text
+    //   - type: string (required, ['global', 'individual'])
+    //   - persistence: string (required, ['one-time', 'persistent'])
+    //   - targetVenueId: string (optional) - Target venue for individual messages
+    //   - active: boolean (required) - Whether message is active
+    //   - readBy: list (optional) - List of venue IDs that read the message
+    //   - createdAt: timestamp (required) - Creation time
+    //
+    // Collection: settings
+    // Document ID: {settingId}
+    // Fields:
+    //   - whatsappEnabled: boolean (required) - Feature toggle
+    //   - updatedAt: timestamp (optional) - Last update time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == "alexcjarvis@gmail.com" ||
+        hasRole('admin')
+      );
+    }
+
+    function isKitchen() {
+      return isAdmin() || hasRole('kitchen');
+    }
+
+    function isVenueUser(venueId) {
+      return isAuthenticated() && hasUserDoc() && getUserData().role == 'venue' && getUserData().venueId == venueId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.size() < 100 && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url == null || (url is string && url.size() < 500 && (url.matches("^https://.*") || url.matches("^http://.*")));
+    }
+
+    function isRecent(ts) {
+      return ts is timestamp && math.abs(request.time.toMillis() - ts.toMillis()) < 5 * 60 * 1000;
+    }
+
+    function fieldUnchanged(field) {
+      return !(field in request.resource.data) || request.resource.data[field] == resource.data[field];
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'kitchen', 'venue'] &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('venueId' in data) || (data.venueId is string && data.venueId.size() < 50));
+    }
+
+    function isValidVenue(data) {
+      return data.keys().hasAll(['id', 'name', 'type']) &&
+             data.keys().hasOnly(['id', 'name', 'type', 'location']) &&
+             data.id is string && data.id.size() < 50 &&
+             data.name is string && data.name.size() < 100 &&
+             data.type in ['kitchen', 'retail'] &&
+             (!('location' in data) || (data.location is string && data.location.size() < 200));
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'price']) &&
+             data.id is string && data.id.size() < 250 &&
+             data.name is string && data.name.size() < 200 &&
+             data.price is number && data.price >= 0 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000)) &&
+             (!('category' in data) || (data.category is string && data.category.size() < 100)) &&
+             (!('imageUrl' in data) || isValidUrl(data.imageUrl)) &&
+             (!('parStock' in data) || (data.parStock is number && data.parStock >= 0)) &&
+             (!('active' in data) || data.active is bool);
+    }
+
+    function isValidInventory(data) {
+      return data.keys().hasAll(['venueId', 'productId', 'quantity', 'lastUpdated']) &&
+             data.keys().hasOnly(['venueId', 'productId', 'quantity', 'lastUpdated']) &&
+             data.venueId is string && data.venueId.size() < 100 &&
+             data.productId is string && data.productId.size() < 250 &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.lastUpdated is timestamp;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['venueId', 'items', 'status', 'createdAt', 'updatedAt', 'orderedBy']) &&
+             data.keys().hasOnly(['venueId', 'items', 'status', 'createdAt', 'updatedAt', 'orderedBy', 'deliveryDate', 'notes', 'statusHistory']) &&
+             data.venueId is string && data.venueId.size() < 50 &&
+             data.items is list && data.items.size() < 100 &&
+             data.status in ['pending', 'shipped', 'received', 'cancelled'] &&
+             data.orderedBy is string && data.orderedBy.size() < 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             (!('deliveryDate' in data) || (data.deliveryDate is string && data.deliveryDate.size() < 20)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 1000)) &&
+             (!('statusHistory' in data) || (data.statusHistory is list && data.statusHistory.size() < 50));
+    }
+
+    function isValidVenueMessage(data) {
+      return data.keys().hasAll(['content', 'type', 'persistence', 'active', 'createdAt']) &&
+             data.keys().hasOnly(['content', 'type', 'persistence', 'active', 'createdAt', 'targetVenueId', 'readBy']) &&
+             data.content is string && data.content.size() < 2000 &&
+             data.type in ['global', 'individual'] &&
+             data.persistence in ['one-time', 'persistent'] &&
+             data.active is bool &&
+             data.createdAt is timestamp &&
+             (!('targetVenueId' in data) || data.targetVenueId == null || (data.targetVenueId is string && data.targetVenueId.size() < 50)) &&
+             (!('readBy' in data) || (data.readBy is list && data.readBy.size() < 200));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      // Users can read their own profile. Admins can read all.
+      allow read: if isOwner(uid) || isAdmin();
+      
+      // Users can create their own profile.
+      allow create: if isOwner(uid) && isValidUser(request.resource.data) &&
+                      request.resource.data.keys().hasOnly(['uid', 'email', 'role', 'venueId', 'displayName']);
+      
+      // Users can update their own profile, but cannot change their role unless they are admin.
+      allow update: if isOwner(uid) && isValidUser(request.resource.data) &&
+                      (request.resource.data.role == resource.data.role || isAdmin()) &&
+                      request.resource.data.keys().hasOnly(['uid', 'email', 'role', 'venueId', 'displayName']);
+    }
+
+    match /venues/{venueId} {
+      // All authenticated users can read venues.
+      allow read: if isAuthenticated();
+      
+      // Only admins can manage venues.
+      allow create, update: if isAdmin() && isValidVenue(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      // All authenticated users can read products.
+      allow read: if isAuthenticated();
+      
+      // Kitchen staff and admins can manage products.
+      // We also allow authenticated users to create products if they are kitchen/admin
+      allow create: if isKitchen() && isValidProduct(request.resource.data);
+      allow update: if isKitchen() && isValidProduct(request.resource.data) && fieldUnchanged('id');
+      allow delete: if isAdmin();
+    }
+
+    match /inventory/{inventoryId} {
+      // All authenticated users can read inventory.
+      allow read: if isAuthenticated();
+      
+      // Kitchen staff can manage all inventory.
+      allow create: if isKitchen() && isValidInventory(request.resource.data);
+      
+      // Update rules:
+      // 1. Kitchen/Admin can update anything.
+      // 2. Venue users can update their OWN inventory (e.g. confirming receipt).
+      // 3. Venue users can decrement Central Kitchen inventory when placing an order (via transaction).
+      allow update: if (isKitchen() || 
+                      (isVenueUser(resource.data.venueId)) ||
+                      (isAuthenticated() && resource.data.venueId == 'central-kitchen' && 
+                       request.resource.data.quantity <= resource.data.quantity &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'lastUpdated']))) &&
+                      isValidInventory(request.resource.data);
+      
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      // All authenticated users can read orders.
+      allow read: if isAuthenticated();
+      
+      // Create rules:
+      // 1. Kitchen/Admin can create any order.
+      // 2. Venue users can create orders for THEIR venue.
+      allow create: if isAuthenticated() && (
+        isKitchen() || isVenueUser(request.resource.data.venueId)
+      ) && isValidOrder(request.resource.data) && 
+      request.resource.data.createdAt == request.time &&
+      request.resource.data.updatedAt == request.time;
+      
+      // Update rules:
+      // 1. Kitchen/Admin can update status, items, etc.
+      // 2. Venue users can update status (e.g. 'received') for THEIR orders.
+      allow update: if (isKitchen() || isVenueUser(resource.data.venueId)) &&
+                      isValidOrder(request.resource.data) &&
+                      fieldUnchanged('createdAt');
+      
+      allow delete: if isAdmin();
+    }
+
+    match /venueMessages/{messageId} {
+      // All authenticated users can read messages.
+      allow read: if isAuthenticated();
+      
+      // Only kitchen/admin can create or delete messages.
+      allow create: if isKitchen() && isValidVenueMessage(request.resource.data);
+      allow delete: if isKitchen();
+      
+      // Update rules:
+      // 1. Kitchen/Admin can update anything.
+      // 2. Venue users can only update 'readBy' and potentially 'active' (for one-time messages).
+      allow update: if isKitchen() || (
+        isAuthenticated() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) ||
+          (resource.data.persistence == 'one-time' && 
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy', 'active']) && 
+           request.resource.data.active == false)
+        ) && isValidVenueMessage(request.resource.data)
+      );
+    }
+
+    match /settings/{settingId} {
+      // All authenticated users can read settings.
+      allow read: if isAuthenticated();
+      
+      // Only admins can manage settings.
+      allow create, update: if isAdmin() && 
+                            request.resource.data.keys().hasAll(['whatsappEnabled']) &&
+                            request.resource.data.whatsappEnabled is bool;
+      allow delete: if isAdmin();
+    }
+    
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
