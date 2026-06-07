@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCN Bakery Portal</title>
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Bakery ordering system for MCN venues" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <script>
+      // Global error handler to catch load-time/runtime crashes and display them
+      window.addEventListener('error', function(event) {
+        const error = event.error;
+        const message = event.message || (error && error.message) || 'Unknown error';
+        const source = event.filename || '';
+        const lineno = event.lineno || 0;
+        const colno = event.colno || 0;
+        
+        console.error('Captured by global window.onerror:', message, source, lineno, colno, error);
+        
+        // Show overlay
+        const div = document.createElement('div');
+        div.id = 'runtime-error-overlay';
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100vw';
+        div.style.height = '100vh';
+        div.style.backgroundColor = '#fef2f2';
+        div.style.color = '#991b1b';
+        div.style.padding = '32px';
+        div.style.fontFamily = 'monospace';
+        div.style.zIndex = '2147483647';
+        div.style.boxSizing = 'border-box';
+        div.style.overflow = 'auto';
+        
+        div.innerHTML = `
+          <div style="max-width: 800px; margin: 0 auto; background: white; border: 1px solid #fee2e2; padding: 24px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+            <h2 style="margin-top: 0; color: #dc2626; border-bottom: 2px solid #fee2e2; padding-bottom: 12px; font-family: sans-serif;">Uncaught Client-Side Error</h2>
+            <p style="font-size: 16px; font-weight: bold; margin-bottom: 16px;">${message}</p>
+            <p><b>Source File:</b> ${source || 'inline/unknown'}</p>
+            <p><b>Line:</b> ${lineno} | <b>Column:</b> ${colno}</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin-top: 16px; overflow-x: auto;">
+              <pre style="margin: 0; white-space: pre-wrap; font-size: 13px;">${error && error.stack ? error.stack : 'No detailed stack trace available'}</pre>
+            </div>
+            <button onclick="window.location.reload()" style="margin-top: 24px; background: #dc2626; color: white; border: none; padding: 10px 20px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; font-family: sans-serif;">Reload Page</button>
+          </div>
+        `;
+        
+        // Append once DOM is ready or immediately
+        if (document.body) {
+          if (!document.getElementById('runtime-error-overlay')) {
+            document.body.appendChild(div);
+          }
+        } else {
+          window.addEventListener('DOMContentLoaded', function() {
+            if (!document.getElementById('runtime-error-overlay')) {
+              document.body.appendChild(div);
+            }
+          });
+        }
+        
+        // Report error to the server backend log
+        fetch('/api/client-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            source: source,
+            lineno: lineno,
+            colno: colno,
+            stack: error && error.stack
+          })
+        }).catch(() => {});
+      });
+
+      // Also listen for unhandled promise rejections
+      window.addEventListener('unhandledrejection', function(event) {
+        const reason = event.reason || 'Unhandled Promise Rejection';
+        const message = reason.message || String(reason);
+        console.error('Unhandled promise rejection:', reason);
+        
+        const div = document.createElement('div');
+        div.id = 'unhandled-rejection-overlay';
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100vw';
+        div.style.height = '100vh';
+        div.style.backgroundColor = '#fffbeb';
+        div.style.color = '#92400e';
+        div.style.padding = '32px';
+        div.style.fontFamily = 'monospace';
+        div.style.zIndex = '2147483647';
+        div.style.boxSizing = 'border-box';
+        div.style.overflow = 'auto';
+        
+        div.innerHTML = `
+          <div style="max-width: 800px; margin: 0 auto; background: white; border: 1px solid #fef3c7; padding: 24px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+            <h2 style="margin-top: 0; color: #d97706; border-bottom: 2px solid #fef3c7; padding-bottom: 12px; font-family: sans-serif;">Promise Rejection / Async Crash</h2>
+            <p style="font-size: 16px; font-weight: bold; margin-bottom: 16px;">${message}</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin-top: 16px; overflow-x: auto;">
+              <pre style="margin: 0; white-space: pre-wrap; font-size: 13px;">${reason.stack ? reason.stack : String(reason)}</pre>
+            </div>
+            <button onclick="window.location.reload()" style="margin-top: 24px; background: #d97706; color: white; border: none; padding: 10px 20px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; font-family: sans-serif;">Reload Page</button>
+          </div>
+        `;
+        
+        if (document.body) {
+          if (!document.getElementById('unhandled-rejection-overlay')) {
+            document.body.appendChild(div);
+          }
+        } else {
+          window.addEventListener('DOMContentLoaded', function() {
+            if (!document.getElementById('unhandled-rejection-overlay')) {
+              document.body.appendChild(div);
+            }
+          });
+        }
+        
+        fetch('/api/client-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            type: 'unhandledrejection',
+            stack: reason.stack
+          })
+        }).catch(() => {});
+      });
+    </script>
+    <script type="module" crossorigin src="/assets/index-C81NgUVi.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-utils-BJ73GbV-.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-firebase-DleOytDT.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-D2ZAzj3d.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
